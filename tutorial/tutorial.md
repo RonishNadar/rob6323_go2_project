@@ -435,6 +435,55 @@ rewards = {
 
 **Important:** Don't forget to add these new keys to your logging dictionary in `__init__` so you can track them in Tensorboard!
 
+---
+
+## Part 6: Advanced Foot Interaction
+
+Next, we will add two critical rewards for legged locomotion: **Foot Clearance** (lifting feet during swing) and **Contact Forces** (grounding feet during stance).
+
+We will adapt the implementation from [IsaacGymEnvs](https://github.com/Jogima-cyber/IsaacGymEnvs/blob/e351da69e05e0433e746cef0537b50924fd9fdbf/isaacgymenvs/tasks/go2_terrain.py#L1142C1-L1154C133).
+
+### 6.1 Update Configuration
+
+Add the scales for these rewards.
+
+```python
+# In Rob6323Go2EnvCfg
+feet_clearance_reward_scale = -30.0
+tracking_contacts_shaped_force_reward_scale = 4.0
+```
+
+### 6.2 Sensor Indices (Critical Step)
+
+Before implementing the rewards, you must be careful with indices. The `_feet_ids` you found earlier using `self.robot.find_bodies(...)` work for accessing robot state (positions), but **cannot** be used for sensor data.
+
+The contact sensor has its own internal indexing. You need to find the feet indices *within the sensor* separately.
+
+```python
+# In Rob6323Go2Env.__init__
+
+# Define foot names
+foot_names = ["FL_foot", "FR_foot", "RL_foot", "RR_foot"]
+
+# 1. Find indices in the ROBOT (for positions/kinematics)
+self._feet_ids = []
+# ... iterate foot_names and use self.robot.find_bodies ...
+# you already have this
+
+# Find indices in the CONTACT SENSOR (for forces)
+self._feet_ids_sensor = []
+# ... iterate foot_names and use self._contact_sensor.find_bodies ...
+# Be sure to store these! You will need them for the force reward.
+```
+
+### 6.3 Implement Rewards
+
+Now, reimplement the logic from the reference code using Isaac Lab's API.
+
+**Key Correspondences:**
+*   `self.foot_indices` (Gait Phase) -> You already computed this in `_step_contact_targets`.
+*   `foot_height` -> Use `self.foot_positions_w` (which uses `_feet_ids_robot`).
+*   `self.contact_forces` -> Use `self._contact_sensor.data.net_forces_w`. **Important:** Index this using `self._feet_ids_sensor`.
 
 By following these steps, you have transformed a simple environment into a research-grade locomotion setup capable of learning robust walking gaits!
 
