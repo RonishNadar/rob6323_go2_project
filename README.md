@@ -180,7 +180,7 @@ We organized all major modifications using a `ControlFlags` class in `rob6323_go
 | Feature | Implementation | Rationale |
 | --- | --- | --- |
 | **Action History** | `ControlFlags.ENABLE_ACTION_HISTORY` | Penalizes action rate/acceleration to smooth out jerky motions. |
-| **Manual PD Control** | `ControlFlags.ENABLE_MANUAL_PD` | Replaced implicit physics PD with a custom torque-level controller () to gain direct control over torque limits and gains. |
+| **Manual PD Control** | `ControlFlags.ENABLE_MANUAL_PD` | Replaced implicit physics PD with a custom torque-level controller to gain direct control over torque limits and gains. |
 | **Early Termination** | `ControlFlags.ENABLE_HEIGHT_TERMINATION` | Resets episode if base height < 0.20m, preventing learning from failed states. |
 | **Raibert Heuristic** | `ControlFlags.ENABLE_RAIBERT_HEURISTIC` | Added gait clock inputs to observations and a reward term minimizing foot placement error relative to the Raibert heuristic. |
 | **Stability Rewards** | `ControlFlags.ENABLE_STABILITY_REWARDS` | Added penalties for non-flat orientation, vertical velocity, and body angular velocity to stabilize the base. |
@@ -205,7 +205,7 @@ We trained the robot to walk on its **front legs (handstand)**. This required si
 * **Critical Adjustments:**
 1. **Torque Limits:** Standard limits (23.5 Nm) were insufficient to lift the body. We unlocked the actuators to **80 Nm** and increased  to **60.0**.
 2. **Lift-Up Reward:** Rewards the normalized base height to encourage the initial jump into the handstand.
-3. **Upright Posture:** Instead of a flat orientation, we reward aligning the body's forward axis () with the world down vector (), effectively rewarding a "nose-down" vertical posture.
+3. **Upright Posture:** Instead of a flat orientation, we reward aligning the body's forward axis with the world down vector, effectively rewarding a "nose-down" vertical posture.
 4. **Rear Flight:** Penalizes ground contact for the rear feet (`RL_foot`, `RR_foot`) to force a bipedal stance.
 
 
