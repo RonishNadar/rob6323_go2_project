@@ -164,4 +164,103 @@ The suggested way to inspect these logs is via the Open OnDemand web interface:
     - [ContactSensorData (`_contact_sensor.data`)](https://isaac-sim.github.io/IsaacLab/main/source/api/lab/isaaclab.sensors.html#isaaclab.sensors.ContactSensorData) — Contains `net_forces_w` (contact forces).
 
 ---
-Students should only edit README.md below this line.
+
+# Student Documentation: Enhancements & Bipedal Locomotion
+
+## 1. Project Summary
+
+This repository implements a robust locomotion policy for the Unitree Go2 robot using PPO. Starting from a weak baseline, we integrated advanced control strategies, reward shaping, and domain randomization. Additionally, we implemented two bonus tasks: **Actuator Friction Modeling** for sim-to-real robustness and a **Bipedal Handstand Walk** skill.
+
+## 2. Key Modifications & Rationale
+
+We organized all major modifications using a `ControlFlags` class in `rob6323_go2_env_cfg.py`. This allows for modular activation of features and ensures reproducibility.
+
+### A. Policy Quality & Gait Improvements (Standard Task)
+
+| Feature | Implementation | Rationale |
+| --- | --- | --- |
+| **Action History** | `ControlFlags.ENABLE_ACTION_HISTORY` | Penalizes action rate/acceleration to smooth out jerky motions. |
+| **Manual PD Control** | `ControlFlags.ENABLE_MANUAL_PD` | Replaced implicit physics PD with a custom torque-level controller () to gain direct control over torque limits and gains. |
+| **Early Termination** | `ControlFlags.ENABLE_HEIGHT_TERMINATION` | Resets episode if base height < 0.20m, preventing learning from failed states. |
+| **Raibert Heuristic** | `ControlFlags.ENABLE_RAIBERT_HEURISTIC` | Added gait clock inputs to observations and a reward term minimizing foot placement error relative to the Raibert heuristic. |
+| **Stability Rewards** | `ControlFlags.ENABLE_STABILITY_REWARDS` | Added penalties for non-flat orientation, vertical velocity, and body angular velocity to stabilize the base. |
+
+### B. Bonus Task 1: Actuator Friction Model (+5 pts)
+
+To narrow the sim-to-real gap, we implemented a randomized joint friction model.
+
+* **Implementation:** `ControlFlags.ENABLE_FRICTION_MODEL`.
+* **Logic:** We subtract friction torque from the PD output: .
+* **Randomization:** Friction coefficients are randomized per episode:
+* Viscous friction 
+* Static friction 
+
+
+
+### C. Bonus Task 2: Bipedal Handstand Walking (+15 pts)
+
+We trained the robot to walk on its **front legs (handstand)**. This required significant changes to the control parameters and reward structure, inspired by *Learning Agile Bipedal Motions on a Quadrupedal Robot* (Li et al., 2024).
+
+* **Activation:** `ControlFlags.ENABLE_BIPEDAL = True`.
+* **Critical Adjustments:**
+1. **Torque Limits:** Standard limits (23.5 Nm) were insufficient to lift the body. We unlocked the actuators to **80 Nm** and increased  to **60.0**.
+2. **Lift-Up Reward:** Rewards the normalized base height to encourage the initial jump into the handstand.
+3. **Upright Posture:** Instead of a flat orientation, we reward aligning the body's forward axis () with the world down vector (), effectively rewarding a "nose-down" vertical posture.
+4. **Rear Flight:** Penalizes ground contact for the rear feet (`RL_foot`, `RR_foot`) to force a bipedal stance.
+
+
+
+## 3. Reproduction Steps
+
+The codebase is configured to switch between tasks using **Macros** at the top of the configuration file.
+
+### To Train the Standard Quadruped Walking Policy:
+
+1. Open `source/rob6323_go2/rob6323_go2/tasks/direct/rob6323_go2/rob6323_go2_env_cfg.py`.
+2. Set the flags as follows:
+```python
+class ControlFlags:
+    ENABLE_MANUAL_PD = True
+    ENABLE_FRICTION_MODEL = True # (Optional: Set False for pure sim)
+    ENABLE_BIPEDAL = False       # <--- DISABLE THIS
+
+```
+
+
+3. Run the training script:
+```bash
+./train.sh
+
+```
+
+
+
+### To Train the Bonus Bipedal (Handstand) Policy:
+
+1. Open `source/rob6323_go2/rob6323_go2/tasks/direct/rob6323_go2/rob6323_go2_env_cfg.py`.
+2. Set the flags as follows:
+```python
+class ControlFlags:
+    ENABLE_MANUAL_PD = True      # Required for high torque
+    ENABLE_BIPEDAL = True        # <--- ENABLE THIS
+
+```
+
+
+3. Run the training script:
+```bash
+./train.sh
+
+```
+
+
+*Note: The bipedal policy typically converges to a stable handstand walk within ~5-10 million steps.*
+
+## 4. Performance Metrics
+
+Training logs are saved to `logs/`. Key metrics to observe in TensorBoard:
+
+* `Episode/Reward`: Total return.
+* `Episode/Rew_bipedal_lift`: (Bipedal only) Indicates successful transition to handstand.
+* `Episode/Rew_rear_flight`: (Bipedal only) Indicates rear legs are airborne.
+* `Episode/Rew_track_lin_vel_xy_exp`: Command tracking accuracy.
